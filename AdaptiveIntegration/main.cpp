@@ -6,6 +6,7 @@
 #include <stack>
 #include <list>
 #include <chrono>
+#include <random>
 
 const double eps = 0.000000000001;
 const double Pi = 4.0*atan(1.0);
@@ -44,6 +45,9 @@ public:
 
 int n_iters = 0;
 std::map<std::thread::id, int> count;
+std::mutex mq;
+std::mutex iom;
+using lg = std::lock_guard<std::mutex>;
 
 double work(Opened& GQ)
 {
@@ -51,15 +55,24 @@ double work(Opened& GQ)
 	double th_local_sum = 0.0;
 	bool done = false;
 
-	while (!done) 
+	while (!done)
 	{
-		if (!GQ.empty()) {   // critical section
-			lq.push(GQ.top());
-			GQ.pop();
+		{ // critical section
+			std::lock_guard<std::mutex> lk(mq);
+			if (!GQ.empty()) {
+				lq.push(GQ.top());
+				GQ.pop();
+			}
+			else {
+				break;
+			}
 		}
-		else {
-			done = true;
-		}
+
+		//{
+		//	lg lk(iom);
+		//	count[std::this_thread::get_id()]++;
+		//	//std::cout << std::this_thread::get_id() << ' ' << lq.top() << '\n';
+		//}
 		int iter = 0;
 		while (!lq.empty())
 		{
@@ -110,7 +123,7 @@ double integral(double left, double right)
 		double s2 = trapeze(fa, fc, c - r.a) + trapeze(fc, fb, r.b - c);
 		double change = std::abs(s2 - s1);
 
-		if (change < eps) 
+		if (change < eps)
 			sum += s2;
 		else {
 			double c = (r.a + r.b)*0.5;
@@ -126,14 +139,29 @@ double integral(double left, double right)
 	return sum;
 }
 
-double integralPar(double left, double right)
+double integralPar(double left, double right, int nt=1)
 {
 	Opened opened;
-	opened.push({left,(left+right)*0.5});
-	opened.push({(left + right)*0.5,right});
 
+	opened.push({left,right});
+	int iters = 10;
+	while (iters--)
+	{
+		range r = opened.top();
+		opened.pop();
+
+		double c = (r.a + r.b)*0.5;
+		double mid_ac = (r.a + c)*0.5;
+		double mid_cb = (c + r.b)*0.5;
+
+		opened.push({r.a,mid_ac});
+		opened.push({mid_ac,c});
+		opened.push({c,mid_cb});
+		opened.push({mid_cb,r.b});
+	}
+	//std::cout << "initial size: " << opened.size() << '\n';
 	double sum = 0.0;
-	const int n_threads = 1;
+	const int n_threads = nt;
 	std::vector<std::future<double>> res(n_threads);
 
 	for (int i = 0; i < n_threads; ++i) {
@@ -166,12 +194,12 @@ int main()
 {
 	using namespace std::chrono;
 
-	int times = 50;
+	int times = 10;
 	std::vector<double> r(times);
 	auto t1 = high_resolution_clock::now();
 
 	for (int i = 0; i < times; i++)
-		r[i] = integralPar(0, 1);
+		r[i] = integralPar(0, 1, 8);
 
 	auto t2 = high_resolution_clock::now();
 	duration<double, std::milli> dur(t2 - t1);
@@ -179,7 +207,7 @@ int main()
 	std::cout << std::setprecision(16) << std::fixed << r.front() << '\n';
 	std::cout << dur.count() / times << '\n';
 	std::cout << n_iters << '\n';
-	
+
 	for (auto& p : count)
 		std::cout << p.first << " / " << p.second << '\n';
 	std::cout << count.size() << '\n';
