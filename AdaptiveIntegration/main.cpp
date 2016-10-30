@@ -6,28 +6,10 @@
 #include <stack>
 #include <list>
 #include <chrono>
+#include "fun.h"
 
-const double eps = 0.000000000001;
-const double Pi = 4.0*atan(1.0);
 
-inline double sq(double x) { return x*x; }
 
-double f(double x)
-{
-	return sq(sin(Pi*x)) + sq(sin(2.0*Pi*x)) + cos(200.0*x*x*x*x);
-}
-
-double trapeze(double fa, double fb, double step)
-{
-	return (fa + fb)*0.5*step;
-}
-
-struct range { double a, b; };
-std::ostream& operator<< (std::ostream& os, range const& r)
-{
-	os << '(' << r.a << ' ' << r.b << ')';
-	return os;
-}
 
 class Opened : public std::stack<range, std::vector<range>>
 {
@@ -44,28 +26,72 @@ public:
 
 int n_iters = 0;
 std::map<std::thread::id, int> count;
+using lg = std::lock_guard<std::mutex>;
+std::mutex mGQ;
+
+using localQ = std::list<range>;
+std::vector<localQ*> lqs;
+std::mutex m_lqs;
+bool done = false;
+std::mutex mio;
+std::condition_variable cv;
 
 double work(Opened& GQ)
 {
-	Opened lq; // local queue
-	double th_local_sum = 0.0;
-	bool done = false;
+	{lg lk(mio); std::cout << std::this_thread::get_id() << '\n'; }
+	localQ lq; // local queue
+	{
+		lg lk(m_lqs);
+		{lg lk(mio); std::cout << std::this_thread::get_id() << " blocks 'lqs'\n"; }
+		lqs.push_back(&lq);
+	}
+	{lg lk(mio); std::cout << std::this_thread::get_id() << " starts waiting\n"; }
+	std::unique_lock<std::mutex> lk(m_lqs);
+	cv.wait(lk, [] { return lqs.size() == 2; });
+	cv.notify_all();
 
+	{lg lk(mio); std::cout << std::this_thread::get_id() << " done waiting\n"; }
+
+	double th_local_sum = 0.0;
+	
 	while (!done) 
 	{
-		if (!GQ.empty()) {   // critical section
-			lq.push(GQ.top());
-			GQ.pop();
+		{lg lk(mio); std::cout << std::this_thread::get_id() << " enters main loop\n"; }
+		{
+			lg lk(mGQ);
+			{lg lk(mio); std::cout << std::this_thread::get_id() << " blocks GQ\n"; }
+			if (!GQ.empty()) {
+				lq.push_back(GQ.top());
+				GQ.pop();
+				{lg lk(mio); std::cout << std::this_thread::get_id() << " pops from GQ\n"; }
+			}
 		}
-		else {
+		if (lq.empty())
+		{
+			{lg lk(mio); std::cout << std::this_thread::get_id() << " tries stealing\n"; }
+			lg lk(m_lqs);
+			for (auto p : lqs)
+			{
+				localQ& q = *p;
+				if (!q.empty()) {
+					{lg lk(mio); std::cout << std::this_thread::get_id() << " steals\n"; }
+					lq.push_back(q.back());
+					q.pop_back();
+					break;
+				}
+			}
+		}
+		if (lq.empty()) {
 			done = true;
+			continue;
 		}
+
 		int iter = 0;
 		while (!lq.empty())
 		{
 			iter++;
-			range r = lq.top();
-			lq.pop();
+			range r = lq.front();
+			lq.pop_front();
 
 			double c = (r.a + r.b)*0.5;
 			double fa = f(r.a), fb = f(r.b);
@@ -81,10 +107,10 @@ double work(Opened& GQ)
 				double mid_ac = (r.a + c)*0.5;
 				double mid_cb = (c + r.b)*0.5;
 
-				lq.push({r.a,mid_ac});
-				lq.push({mid_ac,c});
-				lq.push({c,mid_cb});
-				lq.push({mid_cb,r.b});
+				lq.push_back({r.a,mid_ac});
+				lq.push_back({mid_ac,c});
+				lq.push_back({c,mid_cb});
+				lq.push_back({mid_cb,r.b});
 			}
 		}
 	}
@@ -129,11 +155,15 @@ double integral(double left, double right)
 double integralPar(double left, double right)
 {
 	Opened opened;
-	opened.push({left,(left+right)*0.5});
-	opened.push({(left + right)*0.5,right});
+	int nsteps=8;
+	double step = (right - left) / nsteps;
+
+	for (double x = left; x < right; x += step)
+		opened.push({x,x + step});
+
 
 	double sum = 0.0;
-	const int n_threads = 1;
+	const int n_threads = 2;
 	std::vector<std::future<double>> res(n_threads);
 
 	for (int i = 0; i < n_threads; ++i) {
@@ -166,7 +196,7 @@ int main()
 {
 	using namespace std::chrono;
 
-	int times = 50;
+	int times = 1;
 	std::vector<double> r(times);
 	auto t1 = high_resolution_clock::now();
 
@@ -176,13 +206,19 @@ int main()
 	auto t2 = high_resolution_clock::now();
 	duration<double, std::milli> dur(t2 - t1);
 
-	std::cout << std::setprecision(16) << std::fixed << r.front() << '\n';
+	std::cout << std::setprecision(16) << std::fixed;
+	for (auto v : r)
+		std::cout << v << ' ';
+	std::cout << '\n';
+
 	std::cout << dur.count() / times << '\n';
 	std::cout << n_iters << '\n';
 	
 	for (auto& p : count)
 		std::cout << p.first << " / " << p.second << '\n';
 	std::cout << count.size() << '\n';
+
+	std::cout << eps << '\n';
 
 	/*using namespace std::chrono;
 
