@@ -194,19 +194,18 @@ int main()
 {
 	using namespace std::chrono;
 
-	int times = 10;
+	int times = 20;
 	std::vector<double> r(times);
 	auto t1 = high_resolution_clock::now();
 
 	for (int i = 0; i < times; i++)
-		r[i] = integralPar(0, 1, 8);
+		r[i] = integralPar(0, 1, 4);
 
 	auto t2 = high_resolution_clock::now();
 	duration<double, std::milli> dur(t2 - t1);
 
 	std::cout << std::setprecision(16) << std::fixed << r.front() << '\n';
 	std::cout << dur.count() / times << '\n';
-	std::cout << n_iters << '\n';
 
 	for (auto& p : count)
 		std::cout << p.first << " / " << p.second << '\n';
