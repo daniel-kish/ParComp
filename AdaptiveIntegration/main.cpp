@@ -193,7 +193,7 @@ int main()
 try{
 	using namespace std::chrono;
 
-	n_threads = 4;
+	n_threads = 1;
 	double r;
 	
 	auto t1 = high_resolution_clock::now();
@@ -213,6 +213,7 @@ try{
 	std::cout << "\npoppings\n";
 	for (auto p : poppings)
 		std::cout << p.first << " / " << p.second << '\n';
+	std::cout << std::scientific << eps << '\n';
 }
 catch (std::exception & e)
 {
