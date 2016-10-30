@@ -8,7 +8,7 @@
 #include <chrono>
 #include <random>
 
-const double eps = 0.000000000001;
+const double eps = 0.00000000000001;
 const double Pi = 4.0*atan(1.0);
 
 inline double sq(double x) { return x*x; }
@@ -194,12 +194,12 @@ int main()
 {
 	using namespace std::chrono;
 
-	int times = 20;
+	int times = 50;
 	std::vector<double> r(times);
 	auto t1 = high_resolution_clock::now();
 
 	for (int i = 0; i < times; i++)
-		r[i] = integralPar(0, 1, 4);
+		r[i] = integralPar(0, 1, 1);
 
 	auto t2 = high_resolution_clock::now();
 	duration<double, std::milli> dur(t2 - t1);
