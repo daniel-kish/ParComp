@@ -8,7 +8,8 @@
 #include <chrono>
 #include "fun.h"
 #include "concurrent_list.h"
-
+#include <cassert>
+#include "pool.h"
 
 
 class Opened : public std::stack<range, std::vector<range>>
@@ -39,7 +40,7 @@ std::mutex mio;
 std::condition_variable cv;
 int n_threads = 2;
 
-void est_and_branch(range r, double& th_local_sum, localQ& lq)
+void est_and_branch1(range r, double& th_local_sum, concurrent_list<range>& lq)
 {
 	double c = (r.a + r.b)*0.5;
 	double fa = f(r.a), fb = f(r.b);
@@ -62,8 +63,10 @@ void est_and_branch(range r, double& th_local_sum, localQ& lq)
 	}
 }
 
+std::map<std::thread::id, int> threads;
 std::map<std::thread::id, int> stealings;
 std::map<std::thread::id, int> poppings;
+std::map<std::thread::id, int> works;
 
 double work(concurrent_list<range>& GQ)
 {
@@ -78,7 +81,7 @@ double work(concurrent_list<range>& GQ)
 	std::unique_lock<std::mutex> lk(m_lqs);
 	cv.wait(lk, [] { return lqs.size() == n_threads; });
 	lk.unlock();
-
+	{lg lk(mio);  std::cout << myid << ": start\n"; }
 	double th_local_sum = 0.0;
 	
 	while (true)
@@ -86,7 +89,8 @@ double work(concurrent_list<range>& GQ)
 		range r{};
 		if (GQ.try_pop_back(r)) {
 			lq.push_front(r);
-			//poppings[myid]++;
+			{lg lk(mio);  std::cout << myid << ": popped\n"; }
+			{lg lk(mio); poppings[myid]++; }
 		}
 		else { // steal
 			lg lk(m_lqs);
@@ -94,24 +98,30 @@ double work(concurrent_list<range>& GQ)
 			{
 				if (p == &lq)
 					continue;
-				localQ& other_q = *p;
-				if (other_q.try_pop_back(r)) {
+				if (p->try_pop_back(r,10)) {
 					lq.push_front(r);
-					//stealings[myid]++;
+					{lg lk(mio); std::cout << myid << ": stealed\n"; }
+					{lg lk(mio); stealings[myid]++; }
+					break;
 				}
 			}
 		}
 		if (lq.empty())
 			break;
+		{lg lk(mio); std::cout << myid <<": "<< lq.size() << '\n'; }
 		while (true) {
 			range r;
 			if (!lq.try_pop_front(r))
 				break; // we're done locally
-			est_and_branch(r, th_local_sum, lq);
+			est_and_branch1(r, th_local_sum, lq);
+			{lg lk(mio); works[myid]++; }
 		}
 	}
-	auto my = std::find(begin(lqs), end(lqs), &lq);
-	lqs.erase(my);
+	{
+		lg lk(m_lqs);
+		auto my = std::find(begin(lqs), end(lqs), &lq);
+		lqs.erase(my);
+	}
 	return th_local_sum;
 }
 
@@ -153,7 +163,7 @@ double integral(double left, double right)
 double integralPar(double left, double right)
 {
 	concurrent_list<range> opened;
-	int nsteps = 2*n_threads;
+	int nsteps = 1;
 	double step = (right - left) / nsteps;
 
 	for (double x = left; x < right; x += step)
@@ -192,19 +202,43 @@ double integralR(double a, double b)
 int main()
 try{
 	using namespace std::chrono;
+	using namespace std::chrono_literals;
 
-	n_threads = 1;
-	double r;
+	pool p(4);
+	p.submit({0,1});
+
+	double sum = p.get_result();
+
+/*	auto observe = [] {
+		while (true) {
+			m_lqs.lock();
+			for (auto p = lqs.begin(); p < lqs.end(); ++p)
+				std::cout << (*p)->size() << ' ';
+			m_lqs.unlock();
+			std::cout << '\n';
+			std::this_thread::sleep_for(200ms);
+		}
+	};
+	//std::thread t(observe);
+
+	n_threads = 4;
+	int times = 1;
+	std::vector<double> r(times);
 	
 	auto t1 = high_resolution_clock::now();
 
-	r = integralPar(0, 1);
+	for (int i=0; i < times; i++)
+		r[i] = integralPar(0, 1);
 
 	auto t2 = high_resolution_clock::now();
 	duration<double, std::milli> dur(t2 - t1);
 
-	std::cout << std::setprecision(16) << std::fixed << r << '\n';
-	std::cout << dur.count() << '\n';
+	std::cout << std::setprecision(16) << std::fixed << r.front() << '\n';
+	std::cout << dur.count() / times << '\n';
+
+	std::cout << "\nthreads\n";
+	for (auto p : threads)
+		std::cout << p.first << " / " << p.second << '\n';
 
 	std::cout << "\nstealings\n";
 	for (auto p : stealings)
@@ -213,7 +247,11 @@ try{
 	std::cout << "\npoppings\n";
 	for (auto p : poppings)
 		std::cout << p.first << " / " << p.second << '\n';
-	std::cout << std::scientific << eps << '\n';
+
+	std::cout << "\nworks\n";
+	for (auto p : works)
+		std::cout << p.first << " / " << p.second << '\n';
+		*/
 }
 catch (std::exception & e)
 {

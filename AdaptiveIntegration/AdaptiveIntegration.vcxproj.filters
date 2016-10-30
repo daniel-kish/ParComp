@@ -21,12 +21,18 @@
     <ClCompile Include="fun.cpp">
       <Filter>Файлы исходного кода</Filter>
     </ClCompile>
+    <ClCompile Include="pool.cpp">
+      <Filter>Файлы исходного кода</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="fun.h">
       <Filter>Заголовочные файлы</Filter>
     </ClInclude>
     <ClInclude Include="concurrent_list.h">
+      <Filter>Заголовочные файлы</Filter>
+    </ClInclude>
+    <ClInclude Include="pool.h">
       <Filter>Заголовочные файлы</Filter>
     </ClInclude>
   </ItemGroup>

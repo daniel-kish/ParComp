@@ -1,14 +1,14 @@
 #pragma once
-#include <list>
+#include <deque>
 #include <mutex>
 
-template <class T>
+template <class T, class Cont = std::deque<T>>
 class concurrent_list
 {
-	std::deque<T> data;
-	mutable std::mutex m;
 	using lg = std::lock_guard<std::mutex>;
 	using iter = typename std::list<T>::iterator;
+	mutable std::mutex m;
+	Cont data;
 public:
 	concurrent_list() {}
 	concurrent_list(concurrent_list const& other)
@@ -59,7 +59,16 @@ public:
 		data.pop_back();
 		return true;
 	}
+	bool try_pop_back(T& value, int critical_size)
+	{
+		lg lk(m);
 
+		if (data.size() < critical_size)
+			return false;
+		value = std::move(data.back());
+		data.pop_back();
+		return true;
+	}
 	iter begin() {
 		return data.begin();
 	}
@@ -69,5 +78,9 @@ public:
 	bool empty() const {
 		lg lk(m);
 		return data.empty();
+	}
+	bool size() const {
+		lg lk(m);
+		return data.size();
 	}
 };

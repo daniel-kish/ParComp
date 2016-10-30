@@ -1,4 +1,5 @@
 #pragma once
+#include "concurrent_list.h"
 
 inline double sq(double x) { return x*x; }
 
@@ -11,3 +12,4 @@ double f(double x);
 
 extern const double eps;
 extern const double Pi;
+

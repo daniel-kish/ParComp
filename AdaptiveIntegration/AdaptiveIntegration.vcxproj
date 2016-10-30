@@ -148,10 +148,12 @@
   <ItemGroup>
     <ClCompile Include="fun.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="pool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="concurrent_list.h" />
     <ClInclude Include="fun.h" />
+    <ClInclude Include="pool.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -2,7 +2,7 @@
 #include <iostream>
 #include "fun.h"
 
-const double eps = 1.0e-16;
+const double eps = 1.0e-12;
 const double Pi = 4.0*atan(1.0);
 
 double f(double x)
@@ -20,3 +20,4 @@ std::ostream& operator<< (std::ostream& os, range const& r)
 	os << '(' << r.a << ' ' << r.b << ')';
 	return os;
 }
+
