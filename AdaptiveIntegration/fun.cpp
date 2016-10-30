@@ -2,7 +2,7 @@
 #include <iostream>
 #include "fun.h"
 
-const double eps = 0.000000000001;
+const double eps = 0.00000000000001;
 const double Pi = 4.0*atan(1.0);
 
 double f(double x)
