@@ -2,13 +2,14 @@
 #include <deque>
 #include <mutex>
 
-template <class T, class Cont = std::deque<T>>
+template <class T>
 class concurrent_list
 {
 	using lg = std::lock_guard<std::mutex>;
-	using iter = typename std::list<T>::iterator;
+	using iter = typename std::deque<T>::iterator;
 	mutable std::mutex m;
-	Cont data;
+	std::condition_variable cv;
+	std::deque<T> data;
 public:
 	concurrent_list() {}
 	concurrent_list(concurrent_list const& other)
@@ -82,5 +83,10 @@ public:
 	bool size() const {
 		lg lk(m);
 		return data.size();
+	}
+	void wait_until_empty()
+	{
+		std::unique_lock<std::mutex> lk(m);
+		cv.wait(lk, [this] {return data.empty(); });
 	}
 };

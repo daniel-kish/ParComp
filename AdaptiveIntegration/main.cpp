@@ -204,10 +204,19 @@ try{
 	using namespace std::chrono;
 	using namespace std::chrono_literals;
 
+	double sum = 0.0;
+	auto t1 = high_resolution_clock::now();
+
 	pool p(4);
 	p.submit({0,1});
+	sum = p.get_result();
 
-	double sum = p.get_result();
+	auto t2 = high_resolution_clock::now();
+	duration<double, std::milli> dur(t2 - t1);
+
+	std::cout << std::setprecision(16) << std::fixed << sum << '\n';
+	std::cout << dur.count() << '\n';
+
 
 /*	auto observe = [] {
 		while (true) {

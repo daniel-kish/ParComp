@@ -6,8 +6,9 @@ void pool::worker()
 	while (!done)
 	{
 		range r;
-		if (tasks.try_pop_back(r))
+		if (tasks.try_pop_back(r)) {
 			this->est_and_branch(r);
+		}
 		else
 			std::this_thread::yield();
 	}
@@ -48,8 +49,8 @@ pool::pool(int n_threads) : done(false)
 pool::~pool()
 {
 	done = true;
-	for (auto& t : threads)
-		t.join();
+	//for (auto& t : threads)
+	//	t.join();
 }
 
 void pool::submit(range r)
@@ -59,11 +60,7 @@ void pool::submit(range r)
 
 double pool::get_result()
 {
-	std::mutex m;
-	std::condition_variable cv;
-	std::unique_lock<std::mutex> lk(m);
-
-	cv.wait(lk, [this] {return tasks.empty(); });
-	assert(tasks.empty());
+	for (auto& t : threads)
+		t.join();
 	return sum;
 }
