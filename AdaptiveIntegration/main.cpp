@@ -3,7 +3,7 @@
 #include <future>
 #include <chrono>
 #include <map>
-
+#include <stack>
 
 //class Opened : public std::stack<range, std::vector<range>>
 //{
@@ -203,11 +203,12 @@ struct Pool
 	using prom = std::promise<float>;
 	using res = std::future<float>;
 	struct task { range r; prom p; };
+	struct pending_task { task t; res f1; res f2; };
 	threadsafe_stack<task> l;
 	std::vector<std::thread> threads;
 	std::atomic_bool done;
 
-	Pool(int n_t = std::thread::hardware_concurrency()) 
+	Pool(int n_t = std::thread::hardware_concurrency())
 		: done{false}
 	{
 		for (int i = 0; i < n_t; ++i)
@@ -216,7 +217,7 @@ struct Pool
 	~Pool()
 	{
 		done = true;
-		for (auto& t : threads) 
+		for (auto& t : threads)
 			t.join();
 	}
 	std::tuple<float, bool> need_splitting(Pool::range r) {
@@ -234,54 +235,36 @@ struct Pool
 		l.push_back(std::move(c2));
 		return{std::move(f1), std::move(f2)};
 	}
-	inline bool ready(std::future<float>& f)
+	bool ready(std::future<float>& f)
 	{
 		return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
 	}
 	void worker()
 	{
+		using std::move; using std::tie;
 		auto myid = std::this_thread::get_id();
+		std::stack<pending_task> pend;
 		while (!done)
 		{
-			task t;
-			if (!l.try_pop_back(t)) {
+			if (!pend.empty() && ready(pend.top().f1) && ready(pend.top().f2)) {
+				pend.top().t.p.set_value(pend.top().f1.get() + pend.top().f2.get());
+				pend.pop();
+			}
+			pending_task pt;
+			if (!l.try_pop_back(pt.t)) {
 				continue;
 			}
 
 			float len; bool tosplit;
-			std::tie(len, tosplit) = need_splitting(t.r);
+			tie(len, tosplit) = need_splitting(pt.t.r);
 			if (!tosplit) {
-				t.p.set_value(len);
+				pt.t.p.set_value(len);
 				continue;
 			}
 
-			std::future<float> f1, f2;
-			std::tie(f1, f2) = split(t);
-			while (!(ready(f1) && ready(f2)))
-				run_pending();
-			t.p.set_value(f1.get() + f2.get());
+			tie(pt.f1, pt.f2) = split(pt.t);
+			pend.push(move(pt));
 		}
-	}
-	void run_pending()
-	{
-		auto myid = std::this_thread::get_id();
-		task t;
-		if (!l.try_pop_back(t)) {
-			return;
-		}
-
-		float len; bool tosplit;
-		std::tie(len, tosplit) = need_splitting(t.r);
-		if (!tosplit) {
-			t.p.set_value(len);
-			return;
-		}
-
-		std::future<float> f1, f2;
-		std::tie(f1, f2) = split(t);
-		while (!(ready(f1) && ready(f2)))
-			run_pending();
-		t.p.set_value(f1.get() + f2.get());
 	}
 	std::future<float> submit(Pool::range r)
 	{
@@ -293,7 +276,7 @@ struct Pool
 };
 
 template <class Fun>
-std::chrono::duration<double,std::milli> time_stats(Fun f, int times=10)
+std::chrono::duration<double, std::milli> time_stats(Fun f, int times = 10)
 {
 	using namespace std::chrono;
 
@@ -307,10 +290,10 @@ std::chrono::duration<double,std::milli> time_stats(Fun f, int times=10)
 		durs.push_back(dur);
 	}
 	std::sort(begin(durs), end(durs));
-	
-	int div = durs.size()/2;
+
+	int div = durs.size() / 2;
 	if (durs.size() % 2 == 0)
-		return 0.5*(durs[div-1] + durs[div]);
+		return 0.5*(durs[div - 1] + durs[div]);
 	else {
 		return durs[div];
 	}
@@ -323,10 +306,18 @@ int main()
 	Pool p(4);
 	float len{};
 
-	auto work = [&p,&len] {
-		auto f = p.submit({0,137500});
+	auto multipleWork = [&p, &len] {
+		std::vector<std::future<float>> fs;
+		for (int i=0; i < 100; i++)
+			fs.push_back(p.submit({1,137500}));
+		for (auto & f : fs)
+			len += f.get();
+	};
+	auto work = [&p, &len] {
+		auto f = p.submit({1,137500});
 		len = f.get();
 	};
+	std::cout << time_stats(multipleWork, 1).count() << '\n';
 	std::cout << time_stats(work, 100).count() << '\n';
 	std::cout << len << '\n';
 
