@@ -5,7 +5,7 @@
 #include <vector>
 
 template <class T>
-class thread_safe_stack
+class threadsafe_stack
 {
 	using lg = std::lock_guard<std::mutex>;
 	using iter = typename std::deque<T>::iterator;
@@ -13,13 +13,13 @@ class thread_safe_stack
 	std::condition_variable cv;
 	std::deque<T> data;
 public:
-	thread_safe_stack() {}
-	thread_safe_stack(thread_safe_stack const& other)
+	threadsafe_stack() {}
+	threadsafe_stack(threadsafe_stack const& other)
 	{
 		lg lk(other.m);
 		data = other.data;
 	}
-	thread_safe_stack& operator= (thread_safe_stack const&) = delete;
+	threadsafe_stack& operator= (threadsafe_stack const&) = delete;
 
 	void push_back(T const& v)
 	{

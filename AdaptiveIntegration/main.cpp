@@ -1,5 +1,5 @@
 #include <iostream>
-#include "concurrent_list.h"
+#include "threadsafe_stack.h"
 #include <future>
 #include <chrono>
 #include <map>
@@ -203,7 +203,7 @@ struct Pool
 	using prom = std::promise<float>;
 	using res = std::future<float>;
 	struct task { range r; prom p; };
-	thread_safe_stack<task> l;
+	threadsafe_stack<task> l;
 	std::vector<std::thread> threads;
 	std::atomic_bool done;
 
@@ -234,10 +234,13 @@ struct Pool
 		l.push_back(std::move(c2));
 		return{std::move(f1), std::move(f2)};
 	}
+	inline bool ready(std::future<float>& f)
+	{
+		return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+	}
 	void worker()
 	{
 		auto myid = std::this_thread::get_id();
-		//threadUsage[myid]++;
 		while (!done)
 		{
 			task t;
@@ -249,15 +252,12 @@ struct Pool
 			std::tie(len, tosplit) = need_splitting(t.r);
 			if (!tosplit) {
 				t.p.set_value(len);
-				//tasksDone[myid]++;
 				continue;
 			}
 
 			std::future<float> f1, f2;
 			std::tie(f1, f2) = split(t);
-			while (f1.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
-				run_pending();
-			while (f2.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+			while (!(ready(f1) && ready(f2)))
 				run_pending();
 			t.p.set_value(f1.get() + f2.get());
 		}
@@ -274,15 +274,12 @@ struct Pool
 		std::tie(len, tosplit) = need_splitting(t.r);
 		if (!tosplit) {
 			t.p.set_value(len);
-			//tasksDone[myid]++;
 			return;
 		}
 
 		std::future<float> f1, f2;
 		std::tie(f1, f2) = split(t);
-		while (f1.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
-			run_pending();
-		while (f2.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+		while (!(ready(f1) && ready(f2)))
 			run_pending();
 		t.p.set_value(f1.get() + f2.get());
 	}
@@ -327,10 +324,10 @@ int main()
 	float len{};
 
 	auto work = [&p,&len] {
-		auto f = p.submit({0,237529});
+		auto f = p.submit({0,137500});
 		len = f.get();
 	};
-	std::cout << time_stats(work, 1).count() << '\n';
+	std::cout << time_stats(work, 100).count() << '\n';
 	std::cout << len << '\n';
 
 	//std::cout << "\n Usage \n";

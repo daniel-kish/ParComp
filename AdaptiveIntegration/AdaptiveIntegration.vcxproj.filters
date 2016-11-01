@@ -26,7 +26,7 @@
     <ClInclude Include="fun.h">
       <Filter>Заголовочные файлы</Filter>
     </ClInclude>
-    <ClInclude Include="concurrent_list.h">
+    <ClInclude Include="threadsafe_stack.h">
       <Filter>Заголовочные файлы</Filter>
     </ClInclude>
   </ItemGroup>
