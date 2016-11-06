@@ -1,11 +1,12 @@
 #pragma once
 #include <iostream>
+#include <vector>
 
 class Point
 {
 	double mx;
 	double fv;
-	double fun(double x);
+	static double fun(double x);
 public:
 	Point();
 	Point(double x_);
@@ -16,4 +17,7 @@ public:
 
 std::ostream& operator<< (std::ostream& os, Point const& a);
 double dist(Point const& p, Point const& q);
-double trapeze(Point const& a, Point const& b);
+Point middle(Point const& a, Point const& b);
+double trapeze_area(Point const& a, Point const& b);
+
+extern std::vector<double> xs;

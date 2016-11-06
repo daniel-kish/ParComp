@@ -1,6 +1,9 @@
 #include "Point.h"
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <vector>
+
+std::vector<double> xs;
 
 Point::Point()
 {}
@@ -10,6 +13,7 @@ Point::Point(double x_) : mx{x_}, fv{fun(mx)}
 
 double Point::fun(double x)
 {
+	//xs.push_back(x);
 	return sin(x);
 }
 
@@ -25,7 +29,7 @@ void Point::set(double newx)
 
 std::ostream& operator<< (std::ostream& os, Point const& a)
 {
-	os << '{' << a.x() << '_' << a.f() << '}';
+	os << '{' << a.x() << ' ' << a.f() << '}';
 	return os;
 }
 
@@ -34,8 +38,13 @@ double dist(Point const& p, Point const& q)
 	return q.x() - p.x();
 }
 
-
-double trapeze(Point const& a, Point const& b)
+Point middle(Point const& a, Point const& b)
 {
-	return (a.f() + b.f())*dist(a, b) / 2.0;
+	Point p{(a.x() + b.x())*0.5};
+	return p;
+}
+
+double trapeze_area(Point const& a, Point const& b)
+{
+	return (a.f() + b.f()) / 2.0 * dist(a, b);
 }
