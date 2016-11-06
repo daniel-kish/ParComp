@@ -44,7 +44,7 @@ Point middle(Point const& a, Point const& b)
 	return p;
 }
 
-double trapeze_area(Point const& a, Point const& b)
+double trapezium_area(Point const& a, Point const& b)
 {
 	return (a.f() + b.f()) / 2.0 * dist(a, b);
 }

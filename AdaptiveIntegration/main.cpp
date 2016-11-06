@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #define _USE_MATH_DEFINES
 #include "math.h"
@@ -8,21 +9,34 @@
 #include <algorithm>
 #include <numeric>
 #include <iterator>
+#include <list>
+
+struct waited_res {
+	double res;
+	bool ready;
+};
 
 struct Range
-{ 
+{
+	waited_res *res;
 	Point a, b;
 	double eps;
+	waited_res ans1;
+	waited_res ans2;
+
+	Range(Point const& a_, Point const& b_, double eps_, waited_res* par)
+		: a{a_}, b{b_}, eps{eps_}, res{par}, ans1{0.0, false}, ans2{0.0,false}
+	{	}
 };
 
 Point middle(Range const& r)
 {
-	return middle(r.a,r.b);
+	return middle(r.a, r.b);
 }
 
 double length(Range const& r)
 {
-	return dist(r.a,r.b);
+	return dist(r.a, r.b);
 }
 
 std::ostream& operator<< (std::ostream& os, Range const& r)
@@ -205,15 +219,14 @@ std::ostream& operator<< (std::ostream& os, Range const& r)
 
 double integralRImpl(Point a, Point b, double myeps)
 {
-	double s1 = trapeze_area(a, b);
-	
+	double s1 = trapezium_area(a, b);
 	Point c = middle(a, b);
-	double s2 = trapeze_area(a, c) + trapeze_area(c, b);
-
+	double s2 = trapezium_area(a, c) + trapezium_area(c, b);
 	double change = abs(s2 - s1);
+
 	if (change < myeps)
 		return s2;
-	else 
+	else
 		return integralRImpl(a, c, myeps / 2) + integralRImpl(c, b, myeps / 2);
 }
 
@@ -224,48 +237,81 @@ double integralR(double left, double right, double myeps)
 }
 
 double integralStack(double left, double right, double eps)
-{
-	double s = 0.0;
+try{
+	waited_res s{0.0,false};
 	std::vector<Range> tasks;
-	tasks.push_back({left,right,eps});
+	tasks.reserve(70);
 
+	tasks.emplace_back(left,right,eps,&s);
 	while (!tasks.empty())
 	{
-		Range r = tasks.back();
-		tasks.pop_back();
+		int top_id = tasks.size() - 1;
+		Range& r = tasks[top_id];
 
-		double s1 = trapeze_area(r.a, r.b);
+		if (r.ans1.ready && r.ans2.ready)
+		{
+			r.res->ready = true;
+			r.res->res = r.ans1.res + r.ans2.res;
+			tasks.pop_back();
+			continue;
+		}
+		
+		double s1 = trapezium_area(r.a, r.b);
 		Point c = middle(r.a, r.b);
-		double s2 = trapeze_area(r.a, c) + trapeze_area(c, r.b);
+		double s2 = trapezium_area(r.a, c) + trapezium_area(c, r.b);
 		double change = abs(s2 - s1);
 
-		if (change < r.eps)
-			s += s2;
-		else {
-			tasks.push_back({r.a, c, eps / 2});
-			tasks.push_back({c, r.b, eps / 2});
+		if (change < r.eps) {
+			r.res->ready = true;
+			r.res->res = s2;
+			tasks.pop_back();
+			continue;
 		}
+		tasks.emplace_back(r.a, c, r.eps / 2, &r.ans1);
+		tasks.emplace_back(c, r.b, r.eps / 2, &r.ans2);
 	}
-	return s;
+	return s.res;
+}
+catch (std::exception & e)
+{
+	auto* p = dynamic_cast<std::bad_alloc*>(&e);
+	if (p)
+		std::cerr << "memory allocation error\n";
+	else
+		std::cerr << e.what() << '\n';
 }
 
 int main()
 {
 	using namespace std::chrono;
-	const double Eps = 1.0e-12;
+	const double Eps = 1.0e-15;
+	double a = 0.0, b = M_PI; double exact = 2.0;
 
+	std::cout << "Stack based\n";
 	auto t1 = high_resolution_clock::now();
-	double s = integralR(0.0, M_PI, Eps);
+	double s = integralStack(a, b, Eps);
 	auto t2 = high_resolution_clock::now();
 	duration<double, std::milli> dur(t2 - t1);
 	
-	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed << abs(s-2.0) << '\n';
+	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed << s << '\n';
 	std::cout << "elapsed " << dur.count() << " ms\n";
+	double d1 = dur.count();
 
-	//double s = integralR(0.0, M_PI, Eps);
-	//std::cout << "ans = " << std::setprecision(-log10(Eps)+3) << std::fixed << abs(s - 2.0) << '\n';
-	//
+	std::cout << "\nRecursive\n";
+	t1 = high_resolution_clock::now();
+	s = integralR(a, b, Eps);
+	t2 = high_resolution_clock::now();
+	dur = t2 - t1;
+	
+	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed << s << '\n';
+	std::cout << "elapsed " << dur.count() << " ms\n";
+	
+	std::cout << "Stack to Recursive ratio: " << std::setprecision(3) << d1 / dur.count() << '\n';
+	
+	//std::cout << "\nxs: " << xs.size() << '\n';
 	//std::sort(begin(xs), end(xs));
-	//std::adjacent_difference(begin(xs), end(xs), begin(xs));
-	//std::copy(begin(xs)+1, end(xs), std::ostream_iterator<double>{std::cout, "\n"});
+	//auto p = std::unique(begin(xs), end(xs));
+	//if (p != end(xs))
+	//	std::cout << "!!!!!!!!!!!!!!\n";
+	//std::copy(begin(xs), end(xs), std::ostream_iterator<double>{std::cout, "\n"});
 }

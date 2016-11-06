@@ -18,6 +18,6 @@ public:
 std::ostream& operator<< (std::ostream& os, Point const& a);
 double dist(Point const& p, Point const& q);
 Point middle(Point const& a, Point const& b);
-double trapeze_area(Point const& a, Point const& b);
+double trapezium_area(Point const& a, Point const& b);
 
 extern std::vector<double> xs;
