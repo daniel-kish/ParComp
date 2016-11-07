@@ -10,19 +10,22 @@
 #include <numeric>
 #include <iterator>
 #include <list>
+#include <typeinfo>
+#include <type_traits>
 
 struct waited_res {
-	double res;
 	bool ready;
+	double res;
 };
 
 struct Range
 {
-	waited_res *res;
 	Point a, b;
 	double eps;
+	
 	waited_res ans1;
 	waited_res ans2;
+	waited_res *res;
 
 	Range(Point const& a_, Point const& b_, double eps_, waited_res* par)
 		: a{a_}, b{b_}, eps{eps_}, res{par}, ans1{0.0, false}, ans2{0.0,false}
@@ -240,21 +243,20 @@ double integralStack(double left, double right, double eps)
 try{
 	waited_res s{0.0,false};
 	std::vector<Range> tasks;
-	tasks.reserve(70);
+	tasks.reserve(140);
 
 	tasks.emplace_back(left,right,eps,&s);
-	while (!tasks.empty())
+	while (!tasks.empty()) 
 	{
-		int top_id = tasks.size() - 1;
-		Range& r = tasks[top_id];
-
-		if (r.ans1.ready && r.ans2.ready)
-		{
-			r.res->ready = true;
-			r.res->res = r.ans1.res + r.ans2.res;
+		if (tasks.back().ans1.ready && tasks.back().ans2.ready) {
+			tasks.back().res->ready = true;
+			tasks.back().res->res = tasks.back().ans1.res + tasks.back().ans2.res;
 			tasks.pop_back();
 			continue;
 		}
+
+		int top_id = tasks.size() - 1;
+		Range& r = tasks[top_id];
 		
 		double s1 = trapezium_area(r.a, r.b);
 		Point c = middle(r.a, r.b);
@@ -272,13 +274,36 @@ try{
 	}
 	return s.res;
 }
-catch (std::exception & e)
+catch (std::exception& e)
 {
 	auto* p = dynamic_cast<std::bad_alloc*>(&e);
 	if (p)
 		std::cerr << "memory allocation error\n";
 	else
 		std::cerr << e.what() << '\n';
+}
+
+template <class Fun>
+std::chrono::duration<double, std::milli> time_stats(Fun& f, int times = 10)
+{
+	using namespace std::chrono;
+
+	std::vector<duration<double, std::milli>> durs;
+	for (int i = 0; i < times; ++i)
+	{
+		auto t1 = high_resolution_clock::now();
+		f();
+		auto t2 = high_resolution_clock::now();
+		duration<double, std::milli> dur(t2 - t1);
+		durs.push_back(dur);
+	}
+	std::sort(begin(durs), end(durs));
+
+	int div = durs.size() / 2;
+	if (durs.size() % 2 == 0)
+		return 0.5*(durs[div - 1] + durs[div]);
+	else
+		return durs[div];
 }
 
 int main()
@@ -291,9 +316,9 @@ int main()
 	auto t1 = high_resolution_clock::now();
 	double s = integralStack(a, b, Eps);
 	auto t2 = high_resolution_clock::now();
-	duration<double, std::milli> dur(t2 - t1);
+	duration<double, std::milli> dur = (t2 - t1);
 	
-	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed << s << '\n';
+	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed << abs(s-exact) << '\n';
 	std::cout << "elapsed " << dur.count() << " ms\n";
 	double d1 = dur.count();
 
@@ -303,10 +328,10 @@ int main()
 	t2 = high_resolution_clock::now();
 	dur = t2 - t1;
 	
-	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed << s << '\n';
+	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed << abs(s - exact) << '\n';
 	std::cout << "elapsed " << dur.count() << " ms\n";
 	
-	std::cout << "Stack to Recursive ratio: " << std::setprecision(3) << d1 / dur.count() << '\n';
+	std::cout << "Stack to Recursive ratio: " << std::setprecision(2) << d1 / dur.count() << '\n';
 	
 	//std::cout << "\nxs: " << xs.size() << '\n';
 	//std::sort(begin(xs), end(xs));
