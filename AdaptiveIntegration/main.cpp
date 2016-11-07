@@ -48,25 +48,7 @@ std::ostream& operator<< (std::ostream& os, Range const& r)
 	return os;
 }
 
-//class Opened : public std::stack<range, std::vector<range>>
-//{
-//	using iter = container_type::iterator;
-//
-//public:
-//	iter begin() {
-//		return c.begin();
-//	}
-//	iter end() {
-//		return c.end();
-//	}
-//};
-//
-//int n_iters = 0;
-//std::map<std::thread::id, int> count;
-//std::mutex mq;
-//std::mutex iom;
-//using lg = std::lock_guard<std::mutex>;
-//
+
 //double work(Opened& GQ)
 //{
 //	Opened lq; // local queue
@@ -122,46 +104,13 @@ std::ostream& operator<< (std::ostream& os, Range const& r)
 //	return th_local_sum;
 //}
 //
-//double integral(double left, double right)
-//{
-//	Opened opened;
-//	opened.push({left,right, eps});
-//
-//	double sum = 0.0;
-//	int i = 0;
-//	while (!opened.empty())
-//	{
-//		range r = opened.top();
-//		opened.pop();
-//
-//		Point c = middle(r);
-//		double s1 = trapeze(r.a.f(), r.b.f(), length(r));
-//		double s2 = trapeze(r.a.f(), c.f(), dist(r.a,c)) + trapeze(c.f(), r.b.f(), dist(c,r.b));
-//		double change = std::abs(s2 - s1);
-//
-//		if (change < r.eps)
-//			sum += s2;
-//		else {
-//			opened.push({c, r.b, r.eps * 0.5});
-//			opened.push({r.a, c, r.eps * 0.5});
-//			//double mac = (r.a + c)*0.5;
-//			//double mcb = (c + r.b)*0.5;
-//			//opened.push({r.a, mac, r.eps * 0.25});
-//			//opened.push({mac, c,   r.eps * 0.25});
-//			//opened.push({c, mcb,   r.eps * 0.25});
-//			//opened.push({mcb, r.b, r.eps * 0.25});
-//		}
-//	}
-//	return sum;
-//}
-//
 //double integralPar(double left, double right, int nt=1, int chunks_per_thread=1)
 //{
-//	Opened opened;
 //	int chunks = nt*chunks_per_thread;
+//	std::vector<double> global_tasks;
 //	double step = (right - left) / chunks;
 //	for (int i = 0; i < chunks; i++)
-//		opened.push({left + i*step, left + (i + 1)*step, eps / chunks});
+//		global_tasks.push_back()
 //
 //	double sum = 0.0;
 //	const int n_threads = nt;
@@ -176,49 +125,6 @@ std::ostream& operator<< (std::ostream& os, Range const& r)
 //
 //	return sum;
 //}
-//
-//double integralR(double left, double right, double myeps = eps)
-//{
-//	Point a(), b;
-//	double fa = f(a), fb = f(b);
-//	double fc = f(c);
-//	double s1 = trapeze(fa, fb, b - a);
-//	double s2 = trapeze(fa, fc, c - a) + trapeze(fc, fb, b - c);
-//	double change = abs(s2 - s1);
-//
-//	if (change < myeps)      // tree leaf
-//		return s2;
-//	else                     // branch
-//		return integralR(a, c, myeps*0.5) + integralR(c, b, myeps*0.5);
-//}
-//
-//template <class Fun>
-//std::chrono::duration<double, std::milli> time_stats(Fun f, int times = 10)
-//{
-//	using namespace std::chrono;
-//
-//	std::vector<duration<double, std::milli>> durs;
-//	for (int i = 0; i < times; ++i)
-//	{
-//		auto t1 = high_resolution_clock::now();
-//		f();
-//		auto t2 = high_resolution_clock::now();
-//		duration<double, std::milli> dur(t2 - t1);
-//		durs.push_back(dur);
-//	}
-//	std::sort(begin(durs), end(durs));
-//
-//	for (auto& d : durs)
-//		std::cout << d.count() << '\n';
-//
-//	int div = durs.size() / 2;
-//	if (durs.size() % 2 == 0)
-//		return 0.5*(durs[div - 1] + durs[div]);
-//	else {
-//		return durs[div];
-//	}
-//}
-
 
 double integralRImpl(Point a, Point b, double myeps)
 {
@@ -255,13 +161,13 @@ try{
 			continue;
 		}
 
-		int top_id = tasks.size() - 1;
+		const int top_id = tasks.size() - 1;
 		Range& r = tasks[top_id];
 		
-		double s1 = trapezium_area(r.a, r.b);
-		Point c = middle(r.a, r.b);
-		double s2 = trapezium_area(r.a, c) + trapezium_area(c, r.b);
-		double change = abs(s2 - s1);
+		const double s1 = trapezium_area(r.a, r.b);
+		const Point c = middle(r.a, r.b);
+		const double s2 = trapezium_area(r.a, c) + trapezium_area(c, r.b);
+		const double change = abs(s2 - s1);
 
 		if (change < r.eps) {
 			r.res->ready = true;
@@ -299,6 +205,9 @@ std::chrono::duration<double, std::milli> time_stats(Fun& f, int times = 10)
 	}
 	std::sort(begin(durs), end(durs));
 
+	for (auto d : durs)
+		std::cout << d.count() << '\n';
+
 	int div = durs.size() / 2;
 	if (durs.size() % 2 == 0)
 		return 0.5*(durs[div - 1] + durs[div]);
@@ -312,7 +221,6 @@ int main()
 	const double Eps = 1.0e-15;
 	double a = 0.0, b = M_PI; double exact = 2.0;
 
-	std::cout << "Stack based\n";
 	auto t1 = high_resolution_clock::now();
 	double s = integralStack(a, b, Eps);
 	auto t2 = high_resolution_clock::now();
@@ -320,18 +228,6 @@ int main()
 	
 	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed << abs(s-exact) << '\n';
 	std::cout << "elapsed " << dur.count() << " ms\n";
-	double d1 = dur.count();
-
-	std::cout << "\nRecursive\n";
-	t1 = high_resolution_clock::now();
-	s = integralR(a, b, Eps);
-	t2 = high_resolution_clock::now();
-	dur = t2 - t1;
-	
-	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed << abs(s - exact) << '\n';
-	std::cout << "elapsed " << dur.count() << " ms\n";
-	
-	std::cout << "Stack to Recursive ratio: " << std::setprecision(2) << d1 / dur.count() << '\n';
 	
 	//std::cout << "\nxs: " << xs.size() << '\n';
 	//std::sort(begin(xs), end(xs));
