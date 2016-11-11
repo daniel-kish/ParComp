@@ -14,7 +14,7 @@ Point::Point(double x_) : mx{x_}, fv{fun(mx)}
 double Point::fun(double x)
 {
 	//xs.push_back(x);
-	return sin(x);
+	return sin(1/x);
 }
 
 double Point::x() const { return mx; }
@@ -35,12 +35,12 @@ std::ostream& operator<< (std::ostream& os, Point const& a)
 
 double dist(Point const& p, Point const& q)
 {
-	return q.x() - p.x();
+	return abs(q.x() - p.x());
 }
 
 Point middle(Point const& a, Point const& b)
 {
-	Point p{(a.x() + b.x())*0.5};
+	Point p{(a.x() + b.x())/2.0};
 	return p;
 }
 
