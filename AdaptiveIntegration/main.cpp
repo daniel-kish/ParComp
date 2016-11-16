@@ -255,7 +255,7 @@ struct Pool
 				}
 			}
 		}
-		//{guard l(mio); std::cout << pending->capacity() <<' '<< max_s <<' '<< doGlobalPush << '\n'; }
+		{guard l(mio); std::cout << pending->capacity() <<' '<< max_s <<' '<< doGlobalPush << '\n'; }
 	}
 	void submit(double a, double b, double eps, waited_res* promise)
 	{
@@ -345,6 +345,33 @@ double integralPar(double left, double right, double eps, int n_threads = 1, int
 	return sum;
 }
 
+double integralRImpl(Point a, Point b, double myeps);
+double integralRPar(Point a, Point b, double myeps)
+{
+	static const unsigned max_nth = 4;
+	static unsigned nth = 0;
+
+	double s1 = trapezium_area(a, b);
+	Point c = middle(a, b);
+	double s2 = trapezium_area(a, c) + trapezium_area(c, b);
+	double change = abs(s2 - s1);
+
+	if (change < myeps)
+		return s2;
+	else {
+		if (nth > max_nth)
+			return integralRImpl(a, c, myeps / 2) + integralRImpl(c, b, myeps / 2);
+		else {
+			auto fut = std::async(std::launch::async, integralRPar, c, b, myeps / 2); 
+			nth++;
+			double left = integralRPar(a, c, myeps / 2);
+			double right = fut.get();
+			nth--;
+			return  left + right;
+		}
+	}
+}
+
 double integralRImpl(Point a, Point b, double myeps)
 {
 	double s1 = trapezium_area(a, b);
@@ -408,6 +435,8 @@ catch (std::exception& e)
 		std::cerr << e.what() << '\n';
 }
 
+
+
 template <class Fun>
 std::chrono::duration<double, std::milli> time_stats(Fun& f, int times = 10)
 {
@@ -434,27 +463,42 @@ std::chrono::duration<double, std::milli> time_stats(Fun& f, int times = 10)
 		return durs[div];
 }
 
+/* POOL | RECPAR | SIMPLEPAR | REC */
+#define POOL 
 
 int main()
 {
-	const double Eps = 1.0e-12;
-	double a = 0.01, b = 1.0; double exact = 0.503981893175415; double S = 0.0;
+	const double Eps = 1.0e-06;
+	double a = 0.001, b = 1.0; double exact = 0.504066497877487; double S = 0.0;
 
+#ifdef POOL
 	Pool p(4);
 	waited_res r{false, 0.0};
+#endif
 	auto t1 = high_resolution_clock::now();
 
+#ifdef POOL
 	p.submit(a, b, Eps, &r);
 	while (!r.ready)
 		std::this_thread::yield();
-	//S = integralPar(a, b, Eps, 1, 1);
-	//S = integralR(a, b, Eps);
+	S = r.value;
+#endif
+
+#ifdef RECPAR
+	S = integralRPar(a, b, Eps);
+#endif
+#ifdef SIMPLEPAR
+	S = integralPar(a, b, Eps, 4, 50);
+#endif
+#ifdef REC
+	S = integralR(a, b, Eps);
+#endif
 	auto t2 = high_resolution_clock::now();
 	duration<double, std::milli> dur = (t2 - t1);
 	{ guard l(mio);
 	std::cout << "ans = " << std::setprecision(-log10(Eps)) << std::fixed
 		<< S << ' ' << abs(S - exact) << '\n';
- 	std::cout << "elapsed " << dur.count  () << " ms\n\n";
+ 	std::cout << "elapsed " << dur.count()  << " ms\n\n";
 	}
 
 	//std::cout << "globalPops\n";
