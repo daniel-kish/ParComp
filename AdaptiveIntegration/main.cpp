@@ -150,7 +150,7 @@ struct Pool
 		const Point c = middle(r.a, r.b);
 		const double s2 = trapezium_area(r.a, c) + trapezium_area(c, r.b);
 		const double change = abs(s2 - s1);
-		return{change, s2, c};
+		return std::make_tuple(change, s2, c);
 	}
 	bool both_ready(Range& r)
 	{
@@ -349,7 +349,7 @@ double integralRImpl(Point a, Point b, double myeps);
 double integralRPar(Point a, Point b, double myeps)
 {
 	static const unsigned max_nth = 4;
-	static unsigned nth = 0;
+	static std::atomic<int> nth = 0;
 
 	double s1 = trapezium_area(a, b);
 	Point c = middle(a, b);
@@ -360,7 +360,7 @@ double integralRPar(Point a, Point b, double myeps)
 		return s2;
 	else {
 		if (nth > max_nth)
-			return integralRImpl(a, c, myeps / 2) + integralRImpl(c, b, myeps / 2);
+			return integralRPar(a, c, myeps / 2) + integralRPar(c, b, myeps / 2);
 		else {
 			auto fut = std::async(std::launch::async, integralRPar, c, b, myeps / 2); 
 			nth++;
@@ -435,8 +435,6 @@ catch (std::exception& e)
 		std::cerr << e.what() << '\n';
 }
 
-
-
 template <class Fun>
 std::chrono::duration<double, std::milli> time_stats(Fun& f, int times = 10)
 {
@@ -468,7 +466,7 @@ std::chrono::duration<double, std::milli> time_stats(Fun& f, int times = 10)
 
 int main()
 {
-	const double Eps = 1.0e-06;
+	const double Eps = 1.0e-12;
 	double a = 0.001, b = 1.0; double exact = 0.504066497877487; double S = 0.0;
 
 #ifdef POOL
