@@ -105,7 +105,6 @@ struct Pool
 	std::mutex globalMx;
 	std::atomic_bool done;
 	std::vector<std::thread> threads;
-	int max_local_size;
 
 	using Pending = std::vector<Range>;
 	using iter = Pending::iterator;
@@ -115,7 +114,7 @@ struct Pool
 	static thread_local int doGlobalPush;
 	std::vector<bool> free;
 
-	Pool(int nth, int m = 2000) : done{false}, max_local_size{m}
+	Pool(int nth) : done{false}
 	{
 		free.resize(nth, true);
 		//globalQ.reserve(50);
@@ -345,7 +344,6 @@ double integralPar(double left, double right, double eps, int n_threads = 1, int
 	return sum;
 }
 
-double integralRImpl(Point a, Point b, double myeps);
 double integralRPar(Point a, Point b, double myeps)
 {
 	static const unsigned max_nth = 4;
@@ -462,11 +460,11 @@ std::chrono::duration<double, std::milli> time_stats(Fun& f, int times = 10)
 }
 
 /* POOL | RECPAR | SIMPLEPAR | REC */
-#define POOL 
+#define RECPAR
 
 int main()
 {
-	const double Eps = 1.0e-12;
+	const double Eps = 1.0e-11;
 	double a = 0.001, b = 1.0; double exact = 0.504066497877487; double S = 0.0;
 
 #ifdef POOL

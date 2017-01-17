@@ -1,41 +1,58 @@
 #include <iostream>
-#include <memory>
-#include <unordered_map>
+#include <vector>
+#include <numeric>
+#include <chrono>
+#include <list>
 
-std::unordered_map<void*, int> map;
-
-template <class T>
-struct sp
-{
-	T* p;
-	explicit sp(T* ptr) : p{ptr} {
-		map[p]++;
-	}
-	~sp() {
-		map[p]--;
-		if (map[p] == 0) {
-			delete p;
-			auto it = map.find(p);
-			map.erase(it);
-		}
-	}
-};
-
-struct S {
-	sp<S> i;
-	S() : i(nullptr) {
-
-	}
-	~S()
-	{
-		std::cout << "dest " << this << '\n';
-	}
-};
-
+using namespace std;
+using namespace std::chrono;
 int main()
 {
-	sp<S> s1(new S);
-	sp<S> s2(new S);
-	sp<S> s3(s2.p);
-	std::cout << sizeof(s1) << '\n';
+	// 25 ms
+	// 32 ms
+	// 57 ms
+	// 247 ms
+	int times = 200;
+	
+	int sz = 50'000'000;
+	vector<int> v(sz);
+	list<int> l(sz);
+	iota(begin(v), end(v), 100);
+	iota(begin(l), end(l), 100);
+
+	vector<int> ids(v.size());
+	iota(begin(ids), end(ids), 0);
+
+	auto t1 = high_resolution_clock::now();
+	for (int i=0; i < times; i++) 
+		for (auto& r : v)
+			r *= 2;
+	auto t2 = high_resolution_clock::now();
+	duration<double, std::milli> d(t2 - t1);
+	std::cout << d.count()/times << '\n';
+
+	t1 = high_resolution_clock::now();
+	for (int i = 0; i < times; i++)
+		for (auto rp = v.rbegin(); rp != v.rend(); ++rp)
+			*rp *= 2;
+	t2 = high_resolution_clock::now();
+	d = t2 - t1;
+	std::cout << d.count()/times << '\n';
+
+	t1 = high_resolution_clock::now();
+	for (int i = 0; i < times; i++)
+		for (auto id : ids)
+			v[id] *= 2;
+	t2 = high_resolution_clock::now();
+	d = t2 - t1;
+	std::cout << d.count()/times << '\n';
+
+	t1 = high_resolution_clock::now();
+	for (int i = 0; i < times; i++)
+		for (auto &i : l)
+			i *= 2;
+	t2 = high_resolution_clock::now();
+	d = t2 - t1;
+	std::cout << d.count() / times << '\n';
+
 }
